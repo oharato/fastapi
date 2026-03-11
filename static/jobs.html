@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ジョブ管理</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+</head>
+<body>
+  <div x-data="jobApp()" x-init="init()">
+
+    <!-- ナビゲーションバー -->
+    <div class="navbar bg-base-100 border-b border-base-200 px-4">
+      <div class="navbar-start">
+        <span class="text-xl font-bold">📝 My App</span>
+      </div>
+      <div class="navbar-center gap-2">
+        <a href="/" class="btn btn-sm btn-ghost">TODO</a>
+        <a href="/jobs.html" class="btn btn-sm btn-primary">ジョブ管理</a>
+      </div>
+      <div class="navbar-end">
+        <button class="btn btn-sm btn-ghost btn-circle" @click="theme = toggleTheme(theme)" :title="theme === 'light' ? 'ダークモードへ' : 'ライトモードへ'">
+          <span x-show="theme === 'light'">🌙</span>
+          <span x-show="theme === 'dark'">☀️</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="max-w-4xl mx-auto px-4 py-8">
+      <h1 class="text-2xl font-bold mb-6">ジョブ管理</h1>
+
+      <!-- 投入フォーム -->
+      <div class="card bg-base-100 border border-base-200 shadow-sm mb-6">
+        <div class="card-body">
+          <h2 class="card-title text-base">ジョブを投入</h2>
+          <div class="flex flex-wrap gap-4 items-end">
+            <label class="form-control">
+              <div class="label"><span class="label-text">ジョブ種別</span></div>
+              <select class="select select-bordered select-sm" x-model="form.name">
+                <option value="sample">sample（デモ）</option>
+              </select>
+            </label>
+            <label class="form-control">
+              <div class="label"><span class="label-text">実行秒数</span></div>
+              <input type="number" class="input input-bordered input-sm w-24" x-model.number="form.seconds" min="1" max="120" />
+            </label>
+            <button class="btn btn-primary btn-sm" @click="submitJob()" :disabled="submitting">
+              <span x-show="!submitting">投入</span>
+              <span x-show="submitting" class="loading loading-spinner loading-xs"></span>
+              <span x-show="submitting">投入中…</span>
+            </button>
+          </div>
+          <p class="text-error text-sm mt-1" x-show="submitError" x-text="submitError"></p>
+        </div>
+      </div>
+
+      <!-- ジョブ一覧 -->
+      <div class="card bg-base-100 border border-base-200 shadow-sm">
+        <div class="card-body p-0">
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>種別</th>
+                  <th>ステータス</th>
+                  <th>進捗</th>
+                  <th>作成日時</th>
+                  <th>結果 / エラー</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="job in jobs" :key="job.id">
+                  <tr class="hover">
+                    <td class="font-mono text-xs opacity-50" x-text="job.id.slice(0, 8) + '…'"></td>
+                    <td x-text="job.name"></td>
+                    <td>
+                      <span
+                        class="badge badge-sm"
+                        :class="{
+                          'badge-neutral':  job.status === 'pending',
+                          'badge-info':     job.status === 'running',
+                          'badge-success':  job.status === 'success',
+                          'badge-error':    job.status === 'failed',
+                          'badge-warning':  job.status === 'cancelled',
+                        }"
+                        x-text="job.status"
+                      ></span>
+                    </td>
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <progress class="progress progress-primary w-20" :value="job.progress" max="100"></progress>
+                        <span class="text-xs opacity-60" x-text="job.progress + '%'"></span>
+                      </div>
+                    </td>
+                    <td class="text-xs opacity-60" x-text="fmt(job.created_at)"></td>
+                    <td class="text-xs max-w-xs truncate">
+                      <span x-show="job.result" x-text="job.result" class="text-success"></span>
+                      <span x-show="job.error"  x-text="job.error"  class="text-error"></span>
+                    </td>
+                    <td>
+                      <button
+                        class="btn btn-outline btn-error btn-xs"
+                        x-show="job.status === 'pending' || job.status === 'running'"
+                        @click="cancelJob(job.id)"
+                      >キャンセル</button>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="jobs.length === 0">
+                  <td colspan="7" class="text-center opacity-40 py-10">ジョブはありません</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function jobApp() {
+      return {
+        jobs: [],
+        form: { name: 'sample', seconds: 10 },
+        submitting: false,
+        submitError: '',
+        theme: 'light',
+
+        init() {
+          this.theme = initTheme();
+          this.startStream();
+        },
+
+        startStream() {
+          const es = new EventSource('/api/jobs/stream');
+          es.onmessage = (e) => { this.jobs = JSON.parse(e.data); };
+        },
+
+        async submitJob() {
+          this.submitting = true;
+          this.submitError = '';
+          try {
+            const res = await fetch('/api/jobs', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: this.form.name, params: { seconds: this.form.seconds } }),
+            });
+            if (!res.ok) {
+              const err = await res.json();
+              this.submitError = err.detail ?? '投入に失敗しました';
+            }
+          } catch {
+            this.submitError = 'サーバーとの接続に失敗しました';
+          } finally {
+            this.submitting = false;
+          }
+        },
+
+        async cancelJob(id) {
+          await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+        },
+
+        fmt(iso) {
+          if (!iso) return '-';
+          return new Date(iso).toLocaleString('ja-JP');
+        },
+      };
+    }
+  </script>
+</body>
+</html>

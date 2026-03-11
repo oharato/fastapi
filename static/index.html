@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TODOリスト</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+</head>
+<body>
+  <div x-data="todoApp()" x-init="init()">
+
+    <!-- ナビゲーションバー -->
+    <div class="navbar bg-base-100 border-b border-base-200 px-4">
+      <div class="navbar-start">
+        <span class="text-xl font-bold">📝 My App</span>
+      </div>
+      <div class="navbar-center gap-2">
+        <a href="/" class="btn btn-sm btn-primary">TODO</a>
+        <a href="/jobs.html" class="btn btn-sm btn-ghost">ジョブ管理</a>
+      </div>
+      <div class="navbar-end">
+        <button class="btn btn-sm btn-ghost btn-circle" @click="theme = toggleTheme(theme)" :title="theme === 'light' ? 'ダークモードへ' : 'ライトモードへ'">
+          <span x-show="theme === 'light'">🌙</span>
+          <span x-show="theme === 'dark'">☀️</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="max-w-xl mx-auto px-4 py-8">
+      <h1 class="text-2xl font-bold mb-6">TODOリスト</h1>
+
+      <!-- 追加フォーム -->
+      <form class="flex gap-2 mb-6" @submit.prevent="addTodo()">
+        <input
+          type="text"
+          class="input input-bordered flex-1"
+          placeholder="新しいTODOを入力…"
+          x-model="newTitle"
+          autocomplete="off"
+        />
+        <button type="submit" class="btn btn-primary">追加</button>
+      </form>
+
+      <!-- フィルタータブ -->
+      <div role="tablist" class="tabs tabs-boxed mb-4">
+        <template x-for="f in ['all', 'active', 'done']" :key="f">
+          <a
+            role="tab"
+            class="tab"
+            :class="{ 'tab-active': filter === f }"
+            @click="filter = f"
+            x-text="{ all: 'すべて', active: '未完了', done: '完了' }[f]"
+          ></a>
+        </template>
+      </div>
+
+      <!-- TODOリスト -->
+      <div class="flex flex-col gap-3">
+        <template x-for="todo in filtered" :key="todo.id">
+          <div class="card card-compact bg-base-100 border border-base-200 shadow-sm">
+            <div class="card-body flex-row items-center gap-3">
+              <input
+                type="checkbox"
+                class="checkbox checkbox-primary"
+                :checked="todo.completed"
+                @change="toggleTodo(todo)"
+              />
+
+              <!-- 通常表示 -->
+              <template x-if="editingId !== todo.id">
+                <span
+                  class="flex-1 text-base"
+                  :class="{ 'line-through opacity-40': todo.completed }"
+                  x-text="todo.title"
+                ></span>
+              </template>
+
+              <!-- 編集中 -->
+              <template x-if="editingId === todo.id">
+                <input
+                  type="text"
+                  class="input input-bordered input-sm flex-1"
+                  x-model="editTitle"
+                  @keydown.enter="saveEdit(todo)"
+                  @keydown.escape="editingId = null"
+                  x-ref="editInput"
+                />
+              </template>
+
+              <div class="flex gap-1">
+                <button class="btn btn-ghost btn-xs btn-square" @click="startEdit(todo)" title="編集">✏️</button>
+                <button class="btn btn-ghost btn-xs btn-square" @click="deleteTodo(todo.id)" title="削除">🗑️</button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 空状態 -->
+        <div x-show="filtered.length === 0" class="text-center text-base-content/40 py-12">
+          TODOはありません
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function todoApp() {
+      return {
+        todos: [],
+        newTitle: '',
+        filter: 'all',
+        editingId: null,
+        editTitle: '',
+        theme: 'light',
+
+        init() {
+          this.theme = initTheme();
+          this.fetchTodos();
+        },
+
+        get filtered() {
+          if (this.filter === 'active') return this.todos.filter(t => !t.completed);
+          if (this.filter === 'done')   return this.todos.filter(t => t.completed);
+          return this.todos;
+        },
+
+        async fetchTodos() {
+          const res = await fetch('/api/todos');
+          this.todos = await res.json();
+        },
+
+        async addTodo() {
+          const title = this.newTitle.trim();
+          if (!title) return;
+          const res = await fetch('/api/todos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title }),
+          });
+          this.todos.push(await res.json());
+          this.newTitle = '';
+        },
+
+        async toggleTodo(todo) {
+          const res = await fetch(`/api/todos/${todo.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed: !todo.completed }),
+          });
+          const updated = await res.json();
+          const idx = this.todos.findIndex(t => t.id === todo.id);
+          this.todos[idx] = updated;
+        },
+
+        startEdit(todo) {
+          this.editingId = todo.id;
+          this.editTitle = todo.title;
+          this.$nextTick(() => this.$el.querySelector('.input-bordered.input-sm')?.focus());
+        },
+
+        async saveEdit(todo) {
+          if (!this.editTitle.trim()) return;
+          const res = await fetch(`/api/todos/${todo.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: this.editTitle.trim() }),
+          });
+          const updated = await res.json();
+          const idx = this.todos.findIndex(t => t.id === todo.id);
+          this.todos[idx] = updated;
+          this.editingId = null;
+        },
+
+        async deleteTodo(id) {
+          await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+          this.todos = this.todos.filter(t => t.id !== id);
+        },
+      };
+    }
+  </script>
+</body>
+</html>
+
