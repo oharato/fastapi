@@ -140,12 +140,23 @@
           this.startStream(token);
         },
 
+        destroy() {
+          if (this._es) {
+            this._es.close();
+            this._es = null;
+          }
+        },
+
         startStream(token) {
+          if (this._es) this._es.close();
           const es = new EventSource(`/api/jobs/stream?token=${token}`);
+          this._es = es;
           es.onmessage = (e) => { this.jobs = JSON.parse(e.data); };
           es.onerror = () => {
-            localStorage.removeItem('token');
-            location.href = '/login.html';
+            if (!localStorage.getItem('token')) {
+              es.close();
+              location.href = '/login.html';
+            }
           };
         },
 

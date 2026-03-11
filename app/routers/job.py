@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 from app.core.deps import get_current_user, get_current_user_from_query
-from app.database import get_session
+from app.database import engine, get_session
 from app.models.user import User
 from app.schemas.job import JobCreate, JobRead
 from app.tasks.sample import run_sample_job
@@ -26,14 +26,14 @@ def list_jobs(session: Session = Depends(get_session), current_user: User = Depe
 
 @router.get("/stream")
 async def stream_jobs(
-    session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user_from_query),
 ):
     """SSEでジョブ一覧の変化を1秒ごとに配信する。認証はBearerまたは?token=で行う。"""
     async def event_generator() -> AsyncGenerator[str, None]:
         while True:
-            jobs = job_service.get_jobs(session, current_user.id)
-            data = [JobRead.model_validate(j).model_dump(mode="json") for j in jobs]
+            with Session(engine) as session:
+                jobs = job_service.get_jobs(session, current_user.id)
+                data = [JobRead.model_validate(j).model_dump(mode="json") for j in jobs]
             yield f"data: {json.dumps(data, default=str)}\n\n"
             await asyncio.sleep(1)
 

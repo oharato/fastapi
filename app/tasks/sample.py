@@ -2,6 +2,7 @@ import asyncio
 from app.broker import broker
 from app.database import engine
 from app.models.job import JobStatus
+from app.models.user import User  # noqa: F401 - FK解決のためにインポート必須
 from app.services import job as job_service
 from sqlmodel import Session
 

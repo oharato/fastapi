@@ -134,6 +134,8 @@
           localStorage.removeItem('token');
           location.href = '/login.html';
         },
+
+        async fetchTodos() {
           const res = await authFetch('/api/todos');
           this.todos = await res.json();
         },
