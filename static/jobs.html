@@ -21,11 +21,12 @@
         <a href="/" class="btn btn-sm btn-ghost">TODO</a>
         <a href="/jobs.html" class="btn btn-sm btn-primary">ジョブ管理</a>
       </div>
-      <div class="navbar-end">
+      <div class="navbar-end gap-2">
         <button class="btn btn-sm btn-ghost btn-circle" @click="theme = toggleTheme(theme)" :title="theme === 'light' ? 'ダークモードへ' : 'ライトモードへ'">
           <span x-show="theme === 'light'">🌙</span>
           <span x-show="theme === 'dark'">☀️</span>
         </button>
+        <button class="btn btn-sm btn-ghost" @click="logout()">ログアウト</button>
       </div>
     </div>
 
@@ -134,21 +135,31 @@
 
         init() {
           this.theme = initTheme();
-          this.startStream();
+          const token = getToken();
+          if (!token) return;
+          this.startStream(token);
         },
 
-        startStream() {
-          const es = new EventSource('/api/jobs/stream');
+        startStream(token) {
+          const es = new EventSource(`/api/jobs/stream?token=${token}`);
           es.onmessage = (e) => { this.jobs = JSON.parse(e.data); };
+          es.onerror = () => {
+            localStorage.removeItem('token');
+            location.href = '/login.html';
+          };
+        },
+
+        logout() {
+          localStorage.removeItem('token');
+          location.href = '/login.html';
         },
 
         async submitJob() {
           this.submitting = true;
           this.submitError = '';
           try {
-            const res = await fetch('/api/jobs', {
+            const res = await authFetch('/api/jobs', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: this.form.name, params: { seconds: this.form.seconds } }),
             });
             if (!res.ok) {
@@ -163,7 +174,7 @@
         },
 
         async cancelJob(id) {
-          await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+          await authFetch(`/api/jobs/${id}`, { method: 'DELETE' });
         },
 
         fmt(iso) {

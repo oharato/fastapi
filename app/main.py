@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from taskiq_fastapi import init
 from app.broker import broker
 from app.database import create_db_and_tables
-from app.routers import todo, job
+from app.routers import todo, job, auth
 
 
 @asynccontextmanager
@@ -15,8 +15,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FastAPI App", version="0.1.0", lifespan=lifespan)
 
-init(broker, app)  # ブローカーのstartup/shutdownをlifespanに自動登録
+init(broker, app)
 
+app.include_router(auth.router)
 app.include_router(todo.router)
 app.include_router(job.router)
 

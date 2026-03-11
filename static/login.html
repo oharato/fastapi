@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ログイン</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+</head>
+<body>
+  <div x-data="loginApp()" x-init="init()" class="min-h-screen flex items-center justify-center bg-base-200">
+    <div class="card w-full max-w-sm bg-base-100 shadow-xl">
+      <div class="card-body">
+        <h1 class="card-title text-2xl justify-center mb-2">📝 My App</h1>
+        <p class="text-center text-base-content/50 text-sm mb-4">ログイン</p>
+
+        <form @submit.prevent="doLogin()">
+          <label class="form-control mb-3">
+            <div class="label"><span class="label-text">メールアドレス</span></div>
+            <input type="email" class="input input-bordered" x-model="email" placeholder="admin@example.com" autocomplete="email" required />
+          </label>
+          <label class="form-control mb-5">
+            <div class="label"><span class="label-text">パスワード</span></div>
+            <input type="password" class="input input-bordered" x-model="password" autocomplete="current-password" required />
+          </label>
+
+          <div x-show="error" class="alert alert-error mb-4 py-2 text-sm" x-text="error"></div>
+
+          <button type="submit" class="btn btn-primary w-full" :disabled="loading">
+            <span x-show="loading" class="loading loading-spinner loading-sm"></span>
+            <span x-text="loading ? 'ログイン中…' : 'ログイン'"></span>
+          </button>
+        </form>
+
+        <div class="divider text-xs">テーマ</div>
+        <button class="btn btn-ghost btn-sm" @click="theme = toggleTheme(theme)">
+          <span x-show="theme === 'light'">🌙 ダークモードへ</span>
+          <span x-show="theme === 'dark'">☀️ ライトモードへ</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function loginApp() {
+      return {
+        email: '',
+        password: '',
+        error: '',
+        loading: false,
+        theme: 'light',
+
+        init() {
+          this.theme = initTheme();
+          // すでにログイン済みならリダイレクト
+          if (localStorage.getItem('token')) {
+            location.href = '/';
+          }
+        },
+
+        async doLogin() {
+          this.loading = true;
+          this.error = '';
+          try {
+            const res = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: this.email, password: this.password }),
+            });
+            if (!res.ok) {
+              const data = await res.json();
+              this.error = data.detail ?? 'ログインに失敗しました';
+              return;
+            }
+            const { access_token } = await res.json();
+            localStorage.setItem('token', access_token);
+            location.href = '/';
+          } catch {
+            this.error = 'サーバーとの接続に失敗しました';
+          } finally {
+            this.loading = false;
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

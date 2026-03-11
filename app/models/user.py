@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel
 
 
-class Todo(SQLModel, table=True):
+class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int = Field(foreign_key="user.id", index=True)
-    title: str = Field(min_length=1, max_length=200)
-    completed: bool = Field(default=False)
+    email: str = Field(unique=True, index=True)
+    hashed_password: str
+    is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

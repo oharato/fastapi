@@ -21,11 +21,12 @@
         <a href="/" class="btn btn-sm btn-primary">TODO</a>
         <a href="/jobs.html" class="btn btn-sm btn-ghost">ジョブ管理</a>
       </div>
-      <div class="navbar-end">
+      <div class="navbar-end gap-2">
         <button class="btn btn-sm btn-ghost btn-circle" @click="theme = toggleTheme(theme)" :title="theme === 'light' ? 'ダークモードへ' : 'ライトモードへ'">
           <span x-show="theme === 'light'">🌙</span>
           <span x-show="theme === 'dark'">☀️</span>
         </button>
+        <button class="btn btn-sm btn-ghost" @click="logout()">ログアウト</button>
       </div>
     </div>
 
@@ -119,6 +120,7 @@
 
         init() {
           this.theme = initTheme();
+          if (!getToken()) return;
           this.fetchTodos();
         },
 
@@ -128,17 +130,19 @@
           return this.todos;
         },
 
-        async fetchTodos() {
-          const res = await fetch('/api/todos');
+        logout() {
+          localStorage.removeItem('token');
+          location.href = '/login.html';
+        },
+          const res = await authFetch('/api/todos');
           this.todos = await res.json();
         },
 
         async addTodo() {
           const title = this.newTitle.trim();
           if (!title) return;
-          const res = await fetch('/api/todos', {
+          const res = await authFetch('/api/todos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title }),
           });
           this.todos.push(await res.json());
@@ -146,9 +150,8 @@
         },
 
         async toggleTodo(todo) {
-          const res = await fetch(`/api/todos/${todo.id}`, {
+          const res = await authFetch(`/api/todos/${todo.id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ completed: !todo.completed }),
           });
           const updated = await res.json();
@@ -164,9 +167,8 @@
 
         async saveEdit(todo) {
           if (!this.editTitle.trim()) return;
-          const res = await fetch(`/api/todos/${todo.id}`, {
+          const res = await authFetch(`/api/todos/${todo.id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: this.editTitle.trim() }),
           });
           const updated = await res.json();
@@ -176,7 +178,7 @@
         },
 
         async deleteTodo(id) {
-          await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+          await authFetch(`/api/todos/${id}`, { method: 'DELETE' });
           this.todos = this.todos.filter(t => t.id !== id);
         },
       };

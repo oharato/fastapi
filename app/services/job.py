@@ -5,16 +5,16 @@ from app.models.job import Job, JobStatus
 from app.schemas.job import JobCreate
 
 
-def create_job(session: Session, job_id: str, data: JobCreate) -> Job:
-    job = Job(id=job_id, name=data.name, params=json.dumps(data.params))
+def create_job(session: Session, job_id: str, data: JobCreate, user_id: int) -> Job:
+    job = Job(id=job_id, name=data.name, params=json.dumps(data.params), user_id=user_id)
     session.add(job)
     session.commit()
     session.refresh(job)
     return job
 
 
-def get_jobs(session: Session) -> list[Job]:
-    return list(session.exec(select(Job).order_by(Job.created_at.desc())).all())
+def get_jobs(session: Session, user_id: int) -> list[Job]:
+    return list(session.exec(select(Job).where(Job.user_id == user_id).order_by(Job.created_at.desc())).all())
 
 
 def get_job(session: Session, job_id: str) -> Job | None:
